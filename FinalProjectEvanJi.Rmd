@@ -1,4 +1,6 @@
-#An exploration of AI and ML Salaries ###Evan Ji
+#An exploration of AI and ML Salaries
+
+###Evan Ji
 
 ##Introduction\
 The purpose of this project is to explore AI/ML salaries, and predict the job title given the relevant details of a job, like salary, experience level, ratio of remoteness and others. Such an analysis is especially pertinent given the recent climate within the tech industry. With large layoffs happening throughout this project will assist in informing professionals wishing to pivot or find new jobs what jobs to apply for given thier skill sets.
@@ -83,3 +85,5 @@ remote_ratio_sal_box
 employment_type_sal_box <- ggplot(sal_data,aes(x=as.factor(employment_type),y=salary_in_usd,group = employment_type,fill=as.factor(employment_type)))+geom_boxplot() + scale_y_continuous(name="Salary in USD", labels = comma)+theme_economist()+scale_fill_manual(values=c("#F35DBD", "#BCF930","#B2FFFF"))
 employment_type_sal_box
 ```
+
+None of the
