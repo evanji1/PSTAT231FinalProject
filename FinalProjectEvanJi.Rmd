@@ -1,0 +1,66 @@
+#An exploration of AI and ML Salaries ###Evan Ji
+
+##Introduction\
+The purpose of this project is to explore AI/ML salaries, and predict the job title given the relevant details of a job, like salary, experience level, ratio of remoteness and others. Such an analysis is especially pertinent given the recent climate within the tech industry. With large layoffs happening throughout this project will assist in informing professionals wishing to pivot or find new jobs what jobs to apply for given thier skill sets.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidymodels)
+library(tidyverse)
+library(corrplot)
+```
+
+##Data
+
+###Description
+
+This data was found off Kaggle and can be found [here](https://www.kaggle.com/datasets/bryanb/aiml-salaries?resource=download)
+
+The data contains the following variables.
+
+-   ==work_year== - the year that the salary was paid
+-   ==experience_level== - the experience level of the jobs (EN - entry level, MI - Mid-Level, SE - Senior, EX - executive)
+-   ==employment_type== - type of employment (PT - Part Time, FT - Full Time, CT - Contract)
+-   ==job_title== the role/official name of position
+-   ==salary== -gross salary
+-   ==salary_currency== - currency
+-   ==salaryinusd== - salary in USD
+-   ==employee_residence== - employee's country of residence
+-   ==remote_ratio== - overall work done remotely (0, 50, 100)
+-   ==company_location== - location of main office
+-   ==company_size== - average number of people who worked for the company during the year.
+
+###Data Cleaning
+
+As the data itself comes from Kaggle, there is little work that is needed to be done here. However, as we are only interested in jobs in the US, we can filter out the data, and remove some unneeded variables. This leaves 823 observations and 10 variables for us to work with. We also want to combine 'ML Engineer' and 'Machine Learning Engineer' as the two are the same role. I will also combine Data " " Manager roles.
+
+```{r}
+sal_data <- read.csv('~/GitHub/PSTAT231FinalProject/data/salaries.csv')
+sal_data <- sal_data %>% filter(company_location == 'US') %>% select(-salary_currency,-salary,-company_location)
+sal_data <- sal_data %>% mutate(job_title = replace(job_title,job_title =='ML Engineer', 'Machine Learning Engineer')) %>% mutate(job_title = replace(job_title,job_title %in% c('Data Science Manager','Data Manager', 'Data Engineering Manager','Data Analytics Manager'), 'Data xxxx Manager'))
+```
+
+###Data Exploration
+
+Let us take a further look into our data, starting with the outcome variable ==job_title==.
+
+```{r}
+job_title_hist <- ggplot(sal_data,aes(y=job_title),)+geom_histogram(stat='count')+theme_linedraw()+theme(axis.text = element_text(size = 5))
+job_title_hist
+```
+
+As we can see certain job_titles occur significantly more than others, and there are A LOT of job_titles. Although I would like to be able to train a model that can handle so many different outcomes, I do not have the proper resources to do so, and instead I will focus on a select few job_titles, namely, Machine Learning Engineer, Data xxxx Manager, Data Scientist, Data Engineer, Data Architect, Data Analyst, Analytics Engineer.
+
+```{r}
+sal_data <- sal_data %>% filter(job_title %in% c('Machine Learning Engineer', 'Data xxxx Manager', 'Data Scientist', 'Data Engineer', 'Data Architect', 'Data Analyst', 'Analytics Engineer'))
+newjob_title_hist <-ggplot(sal_data,aes(y=job_title))+geom_histogram(stat='count')+theme_linedraw()+theme(axis.text = element_text(size = 10))
+newjob_title_hist
+```
+
+This still leaves us with 702 observations which is 59% of our original dataset and should be sufficient in training our models. Now let us look at how our variables interact with one another.
+
+```{r}
+sal_data_cor = cor(select_if(sal_data,is.numeric))
+corrplot(sal_data_cor)
+```
