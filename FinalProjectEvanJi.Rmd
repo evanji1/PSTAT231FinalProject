@@ -9,6 +9,8 @@ library(ggplot2)
 library(tidymodels)
 library(tidyverse)
 library(corrplot)
+library(scales)
+library(ggthemes)
 ```
 
 ##Data
@@ -21,7 +23,7 @@ The data contains the following variables.
 
 -   ==work_year== - the year that the salary was paid
 -   ==experience_level== - the experience level of the jobs (EN - entry level, MI - Mid-Level, SE - Senior, EX - executive)
--   ==employment_type== - type of employment (PT - Part Time, FT - Full Time, CT - Contract)
+-   ==employment_type== - type of employment (PT - Part Time, FT - Full Time, CT - Contract, FL - Freelance)
 -   ==job_title== the role/official name of position
 -   ==salary== -gross salary
 -   ==salary_currency== - currency
@@ -58,9 +60,26 @@ newjob_title_hist <-ggplot(sal_data,aes(y=job_title))+geom_histogram(stat='count
 newjob_title_hist
 ```
 
-This still leaves us with 702 observations which is 59% of our original dataset and should be sufficient in training our models. Now let us look at how our variables interact with one another.
+This still leaves us with 702 observations which is 59% of our original dataset and should be sufficient in training our models. Now let us look at how or numerical variables interact with one another.
 
 ```{r}
 sal_data_cor = cor(select_if(sal_data,is.numeric))
 corrplot(sal_data_cor)
+```
+
+As we can see there is little to no interaction. I am more interested in the discrete variable interactions however as there seems to be intuitive interactions. For example, I believe that for job_titles with greater counts such as data scientist, the distribution of experience level should be roughly normal, and for job_titles with lower counts they will concentrate on one experience level (i.e data xxxx manager should show more executives). I'm also curious as to how remote_ratio affects the salary. I would expect a higher remote ratio to have a lower corresponding salary_in_usd. In the same vein, I would also like to explore the same effects between employment_type and salary_in_usd.
+
+```{r}
+job_title_histexplevel <-ggplot(sal_data,aes(y=job_title,fill = experience_level))+geom_histogram(stat='count',position = 'dodge')
+job_title_histexplevel
+```
+
+```{r}
+remote_ratio_sal_box <- ggplot(sal_data,aes(x=as.factor(remote_ratio),y=salary_in_usd,group = remote_ratio,fill=as.factor(remote_ratio)))+geom_boxplot() + scale_y_continuous(name="Salary in USD", labels = comma)+theme_economist()+scale_fill_manual(values=c("#CC23EA", "#19D630","#24D4F7"))
+remote_ratio_sal_box
+```
+
+```{r}
+employment_type_sal_box <- ggplot(sal_data,aes(x=as.factor(employment_type),y=salary_in_usd,group = employment_type,fill=as.factor(employment_type)))+geom_boxplot() + scale_y_continuous(name="Salary in USD", labels = comma)+theme_economist()+scale_fill_manual(values=c("#F35DBD", "#BCF930","#B2FFFF"))
+employment_type_sal_box
 ```
