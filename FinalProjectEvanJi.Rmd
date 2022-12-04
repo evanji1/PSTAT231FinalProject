@@ -88,7 +88,7 @@ newjob_title_hist2 <-ggplot(sal_data,aes(y=job_title))+geom_bar(stat='count')+th
 newjob_title_hist2
 ```
 
-This still leaves us with 823 observations which is 69% of our original dataset and should be sufficient in training our models. Now let us look at how or numerical variables interact with one another.
+This still leaves us with 823 observations which is 69% of our original dataset and should be sufficient in training our models. Now let us look at how or numerical variables interact with one another. (They don't I only have one numerical variable)
 
 ```{r}
 sal_data_cor = cor(select_if(sal_data,is.numeric))
@@ -96,24 +96,27 @@ corrplot(sal_data_cor)
 ## I know that this correlation plot is useless. I just really like correlation plots.
 ```
 
-As we can see there is little to no interaction. I am more interested in the discrete variable interactions however as there seems to be intuitive interactions. For example, I believe that for job_titles with greater counts such as data scientist, the distribution of experience level should be roughly normal, and for job_titles with lower counts they will concentrate on one experience level (i.e data xxxx manager should show more executives). I'm also curious as to how remote_ratio affects the salary. I would expect a higher remote ratio to have a lower corresponding salary_in_usd. In the same vein, I would also like to explore the same effects between employment_type and salary_in_usd.
+As we can see there is little to no interaction. I am more interested in the categorical variable interactions however as there seems to be intuitive interactions. For example, I believe that for job_titles with greater counts such as data scientist, the distribution of experience level should be roughly normal, and for job_titles with lower counts they will concentrate on one experience level (i.e data xxxx manager should show more executives). I'm also curious as to how remote_ratio affects the salary. I would expect a higher remote ratio to have a lower corresponding salary_in_usd. In the same vein, I would also like to explore the same effects between employment_type and salary_in_usd.
 
 ```{r}
 job_title_histexplevel <-ggplot(sal_data,aes(y=job_title,fill = experience_level))+geom_histogram(stat='count',position = 'dodge')
 job_title_histexplevel
 ```
-
+Note: There appears to be VERY FEW EX level observations, and a lot more SE, followed by MI observations which is expected given most company structures. Contrary to my belief however, certain job_titles do not experience a single clustering of experience_level.
 ```{r}
 remote_ratio_sal_box <- ggplot(sal_data,aes(x=remote_ratio,y=salary_in_usd,group = remote_ratio,fill=remote_ratio))+geom_boxplot() + scale_y_continuous(name="Salary in USD", labels = comma)+theme_economist()+scale_fill_manual(values=c("#CC23EA", "#19D630","#24D4F7"))
 remote_ratio_sal_box
 ```
-
+Note: The means of each level of remote ratio seems to be similar.
 ```{r}
 employment_type_sal_box <- ggplot(sal_data,aes(x=employment_type,y=salary_in_usd,group = employment_type,fill=employment_type))+geom_boxplot() + scale_y_continuous(name="Salary in USD", labels = comma)+theme_economist()+scale_fill_manual(values=c("#F35DBD", "#BCF930","#B2FFFF","#FFA500"))
 employment_type_sal_box
 ```
+Note: Employment types FL and PT have very few observations.
 
-None of the graphs or plots reflected my initial thoughts. For experience_level there are no clustering for job_titles as I thought there would be. And for remote ratio, it does not appear that greater remoteness resulted in a lower salary. For the relation between employment_type and salary, amazingly enough contract workers were paid more, and freelance was expectedly paid the least. However, after examination of the dataset it appears that FL, and CT had very low observations counts, and so may not be a completely accurate representation, in fact PT, has only one observation.
+
+###Conclusion of Exploration
+None of the graphs or plots reflected my initial thoughts. For experience_level there are no clustering for job_titles as I thought there would be. And for remote ratio, it does not appear that greater remoteness resulted in a lower salary. For the relation between employment_type and salary, amazingly enough contract workers were paid more, and freelance was expectedly paid the least. Overall, there seems to be no obvious interactions that we need to consider, and no variables are directly correlated to the outcome variable.
 
 ###Data Splitting
 
@@ -262,8 +265,16 @@ augment(boost_fit, new_data = sal_data_train) %>%
 augment(boost_fit, new_data = sal_data_train) %>%
   conf_mat(truth = job_title, estimate = .pred_class)%>%autoplot(type='heatmap')+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
 ```
-As we can see the 
+As we can see the boosted tree model performs the best. This is expected as boosted tree models excel in these sort of classification tasks. Now let us predict job_title for our test data.
 
+```{r}
+final_final_fit <- fit(boost_final, data = sal_data_test)
+augment(final_final_fit, new_data = sal_data_test) %>%
+  accuracy(truth = job_title, estimate = .pred_class)
+augment(final_final_fit, new_data = sal_data_test) %>%
+  conf_mat(truth = job_title, estimate = .pred_class)%>%autoplot(type='heatmap')
+```
+##
 
 
 
