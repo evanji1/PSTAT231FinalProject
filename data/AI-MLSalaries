@@ -1,0 +1,25 @@
+Source of Data: https://www.kaggle.com/datasets/bryanb/aiml-salaries?resource=download
+
+
+
+==work_year== - the year that the salary was paid (type categorical)
+
+==experience_level== - the experience level of the jobs (EN - entry level, MI - Mid-Level, SE - Senior, EX - executive) (type categorical)
+
+==employment_type== - type of employment (PT - Part Time, FT - Full Time, CT - Contract, FL - Freelance) (type categorical)
+
+==job_title== the role/official name of position (type categorical)
+
+==salary== -gross salary (type numerical)
+
+==salary_currency== - currency (type categorical)
+
+==salaryinusd== - salary in USD (type numerical)
+
+==employee_residence== - employee's country of residence (type categorical)
+
+==remote_ratio== - overall work done remotely (0, 50, 100) (type categorical)
+
+==company_location== - location of main office (type categorical)
+
+==company_size== - average number of people who worked for the company during the year. (type categorical)
