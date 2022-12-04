@@ -2,7 +2,7 @@
 
 ###Evan Ji
 
-##Introduction\
+##Introduction
 The purpose of this project is to explore AI/ML salaries, and predict the job title given the relevant details of a job, like salary, experience level, ratio of remoteness and others. Such an analysis is especially pertinent given the recent climate within the tech industry. With large layoffs happening throughout this project will assist in informing professionals wishing to pivot or find new jobs what jobs to apply for given their skill sets.
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
@@ -18,6 +18,8 @@ library(ggthemes)
 library(rpart.plot)
 library(discrim)
 library(klaR)
+library(ranger)
+library(xgboost)
 ```
 
 ##Data
@@ -81,7 +83,7 @@ sal_data <- sal_data %>% mutate(job_title = replace(job_title,job_title %in% c("
 "Head of Data","Data Analytics Lead" ,"Principal Data Scientist",                
 "Computer Vision Engineer","Principal Data Engineer", "Director of Data Science" ,               
 "Big Data Engineer", "Lead Data Analyst", "Computer Vision Software Engineer" ,      
-"Lead Data Engineer" ,"Cloud Data Engineer","Principal Data Analyst","Staff Data Scientist","Director of Data Engineering","Analytics Engineer"), 'Other'))%>%mutate(job_title = factor(job_title))%>%mutate(remote_ratio = factor(remote_ratio))%>%mutate(company_size = factor(company_size))%>%mutate(experience_level = factor(experience_level))%>%mutate(work_year = factor(work_year))
+"Lead Data Engineer" ,"Cloud Data Engineer","Principal Data Analyst","Staff Data Scientist","Director of Data Engineering","Analytics Engineer"), 'Other'))%>%mutate(job_title = factor(job_title))%>%mutate(remote_ratio = factor(remote_ratio))%>%mutate(company_size = factor(company_size))%>%mutate(experience_level = factor(experience_level))%>%mutate(work_year = factor(work_year))%>%mutate(employment_type = factor(employment_type))
 newjob_title_hist2 <-ggplot(sal_data,aes(y=job_title))+geom_bar(stat='count')+theme_linedraw()+theme(axis.text = element_text(size = 10))
 newjob_title_hist2
 ```
@@ -127,7 +129,7 @@ sal_data_fold <- vfold_cv(sal_data,v=5,strata = job_title)
 ##Analysis
 
 ```{r}
-sal_data_recipe <- recipe(job_title ~ ., sal_data_train)
+sal_data_recipe <- recipe(job_title ~ ., sal_data_train)%>%step_dummy(all_nominal_predictors())
 ```
 
 ```{r}
@@ -162,6 +164,7 @@ augment(lda_fit, new_data = sal_data_train) %>%
 ```
 
 ```{r}
+sal_data_nbrecipe<-recipe(job_title~.,sal_data)
 nb_mod <- naive_Bayes() %>% 
   set_mode("classification") %>% 
   set_engine("klaR") %>% 
@@ -169,7 +172,7 @@ nb_mod <- naive_Bayes() %>%
 
 nb_wkflow <- workflow() %>% 
   add_model(nb_mod) %>% 
-  add_recipe(sal_data_recipe)
+  add_recipe(sal_data_nbrecipe)
 
 nb_fit <- fit(nb_wkflow, sal_data_train)
 augment(nb_fit, new_data = sal_data_train) %>%
@@ -184,7 +187,7 @@ set_mode("classification") %>% set_args(cost_complexity = tune())
 class_tree_wf <- workflow()%>%add_model(class_tree_spec)%>%add_recipe(sal_data_recipe)
 param_grid <- grid_regular(cost_complexity(range= c(-3,-1)), levels=10)
 ```
-```{r}
+```{r eval=FALSE}
 tune_res <-tune_grid(class_tree_wf, resamples = sal_data_fold,grid = param_grid, metrics = metric_set(accuracy))
 write_rds(tune_res,file = '~/GitHub/PSTAT231FinalProject/dectree.rds')
 ```
@@ -207,4 +210,62 @@ augment(class_tree_fit, new_data = sal_data_train) %>%
 augment(class_tree_fit, new_data = sal_data_train) %>%
   conf_mat(truth = job_title, estimate = .pred_class)%>%autoplot(type='heatmap')+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
 ```
+
+```{r}
+forest_spec <- rand_forest()%>%set_engine("ranger", importance = "impurity")%>%set_mode("classification")%>%set_args(mtry=tune(), trees =tune(),min_n =tune())
+
+forest_wf <- workflow()%>%add_model(forest_spec)%>%add_recipe(sal_data_recipe)
+```
+```{r eval=FALSE}
+param_grid2 <- grid_regular(mtry(range = c(3,15)),min_n(range = c(5,10)),trees(range = c(200,1000)),levels=4)
+tune_res1 <-tune_grid(forest_wf, resamples = sal_data_fold,grid = param_grid2, metrics = metric_set(roc_auc))
+write_rds(tune_res1,file = '~/GitHub/PSTAT231FinalProject/randforest.rds')
+```
+```{r}
+tune_res1<-read_rds('~/GitHub/PSTAT231FinalProject/randforest.rds')
+autoplot(tune_res1)
+```
+```{r}
+best_tune1 <- select_best(tune_res1)
+randforest_final <- finalize_workflow(forest_wf, best_tune1)
+randforest_fit <- fit(randforest_final, data = sal_data_train)
+```
+```{r}
+augment(randforest_fit, new_data = sal_data_train) %>%
+  accuracy(truth = job_title, estimate = .pred_class)
+augment(randforest_fit, new_data = sal_data_train) %>%
+  conf_mat(truth = job_title, estimate = .pred_class)%>%autoplot(type='heatmap')+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+```
+
+
+
+```{r}
+boost_spec <- boost_tree() %>%
+  set_engine("xgboost") %>%set_mode("classification") %>%set_args(trees=tune())
+boost_wf <- workflow()%>%add_model(boost_spec)%>%add_recipe(sal_data_recipe)
+param_grid3 <- grid_regular(trees(range = c(10,200)),levels=5)
+```
+```{r}
+tune_res2 <-tune_grid(boost_wf, resamples = sal_data_fold,grid = param_grid3, metrics = metric_set(roc_auc))
+write_rds(tune_res2,file = '~/GitHub/PSTAT231FinalProject/boosttree.rds')
+```
+```{r}
+tune_res2 <-read_rds('~/GitHub/PSTAT231FinalProject/boosttree.rds')
+autoplot(tune_res2)
+```
+```{r}
+best_tune2 <- select_best(tune_res2)
+boost_final <- finalize_workflow(boost_wf, best_tune1)
+boost_fit <- fit(boost_final, data = sal_data_train)
+augment(boost_fit, new_data = sal_data_train) %>%
+  accuracy(truth = job_title, estimate = .pred_class)
+augment(boost_fit, new_data = sal_data_train) %>%
+  conf_mat(truth = job_title, estimate = .pred_class)%>%autoplot(type='heatmap')+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+```
+As we can see the 
+
+
+
+
+
 
