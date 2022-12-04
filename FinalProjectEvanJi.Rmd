@@ -3,7 +3,7 @@
 ###Evan Ji
 
 ##Introduction\
-The purpose of this project is to explore AI/ML salaries, and predict the job title given the relevant details of a job, like salary, experience level, ratio of remoteness and others. Such an analysis is especially pertinent given the recent climate within the tech industry. With large layoffs happening throughout this project will assist in informing professionals wishing to pivot or find new jobs what jobs to apply for given thier skill sets.
+The purpose of this project is to explore AI/ML salaries, and predict the job title given the relevant details of a job, like salary, experience level, ratio of remoteness and others. Such an analysis is especially pertinent given the recent climate within the tech industry. With large layoffs happening throughout this project will assist in informing professionals wishing to pivot or find new jobs what jobs to apply for given their skill sets.
 
 ```{r}
 library(dplyr)
@@ -13,6 +13,8 @@ library(tidyverse)
 library(corrplot)
 library(scales)
 library(ggthemes)
+library(rpart.plot)
+library(discrim)
 ```
 
 ##Data
@@ -41,7 +43,7 @@ As the data itself comes from Kaggle, there is little work that is needed to be 
 
 ```{r}
 sal_data <- read.csv('~/GitHub/PSTAT231FinalProject/data/salaries.csv')
-sal_data <- sal_data %>% filter(company_location == 'US') %>% select(-salary_currency,-salary,-company_location)
+sal_data <- sal_data %>% filter(company_location == 'US') %>% select(-salary_currency,-salary,-company_location,-employee_residence)
 sal_data <- sal_data %>% mutate(job_title = replace(job_title,job_title =='ML Engineer', 'Machine Learning Engineer')) %>% mutate(job_title = replace(job_title,job_title %in% c('Data Science Manager','Data Manager', 'Data Engineering Manager','Data Analytics Manager'), 'Data xxxx Manager'))
 ```
 
@@ -57,9 +59,15 @@ job_title_hist
 As we can see certain job_titles occur significantly more than others, and there are A LOT of job_titles. Although I would like to be able to train a model that can handle so many different outcomes, I do not have the proper resources to do so, and instead I will focus on a select few job_titles, namely, Machine Learning Engineer, Data xxxx Manager, Data Scientist, Data Engineer, Data Architect, Data Analyst, Analytics Engineer.
 
 ```{r}
-sal_data <- sal_data %>% filter(job_title %in% c('Machine Learning Engineer', 'Data xxxx Manager', 'Data Scientist', 'Data Engineer', 'Data Architect', 'Data Analyst', 'Analytics Engineer'))
-newjob_title_hist <-ggplot(sal_data,aes(y=job_title))+geom_histogram(stat='count')+theme_linedraw()+theme(axis.text = element_text(size = 10))
+sal_datalarge <- sal_data %>% filter(job_title %in% c('Machine Learning Engineer', 'Data xxxx Manager', 'Data Scientist', 'Data Engineer', 'Data Architect', 'Data Analyst', 'Analytics Engineer'))%>%mutate(job_title = factor(job_title))%>%mutate(remote_ratio = factor(remote_ratio))%>%mutate(company_size = factor(company_size))%>%mutate(experience_level = factor(experience_level))%>%mutate(work_year = factor(work_year))
+newjob_title_hist <-ggplot(sal_datalarge,aes(y=job_title))+geom_histogram(stat='count')+theme_linedraw()+theme(axis.text = element_text(size = 10))
 newjob_title_hist
+```
+
+Even still there are certain job_titles which lack the proper amount of observations in order to train an accurate and efficient model. And so I think that it would be reasonable to cut down the job_titles to just Machine Learning Engineer, Data Scientist, Data Engineer, Data Analyst and Other.
+
+```{r}
+sal_data <- sal_data %>% mutate(job_title = replace(job_title,job_title %in% c('Data Science Manager','Data Manager', 'Data Engineering Manager','Data Analytics Manager'), 'Other'))
 ```
 
 This still leaves us with 702 observations which is 59% of our original dataset and should be sufficient in training our models. Now let us look at how or numerical variables interact with one another.
@@ -67,6 +75,7 @@ This still leaves us with 702 observations which is 59% of our original dataset 
 ```{r}
 sal_data_cor = cor(select_if(sal_data,is.numeric))
 corrplot(sal_data_cor)
+## I know that this correlation plot does not show that much. I just really like correlation plots.
 ```
 
 As we can see there is little to no interaction. I am more interested in the discrete variable interactions however as there seems to be intuitive interactions. For example, I believe that for job_titles with greater counts such as data scientist, the distribution of experience level should be roughly normal, and for job_titles with lower counts they will concentrate on one experience level (i.e data xxxx manager should show more executives). I'm also curious as to how remote_ratio affects the salary. I would expect a higher remote ratio to have a lower corresponding salary_in_usd. In the same vein, I would also like to explore the same effects between employment_type and salary_in_usd.
@@ -77,13 +86,77 @@ job_title_histexplevel
 ```
 
 ```{r}
-remote_ratio_sal_box <- ggplot(sal_data,aes(x=as.factor(remote_ratio),y=salary_in_usd,group = remote_ratio,fill=as.factor(remote_ratio)))+geom_boxplot() + scale_y_continuous(name="Salary in USD", labels = comma)+theme_economist()+scale_fill_manual(values=c("#CC23EA", "#19D630","#24D4F7"))
+remote_ratio_sal_box <- ggplot(sal_data,aes(x=remote_ratio,y=salary_in_usd,group = remote_ratio,fill=remote_ratio))+geom_boxplot() + scale_y_continuous(name="Salary in USD", labels = comma)+theme_economist()+scale_fill_manual(values=c("#CC23EA", "#19D630","#24D4F7"))
 remote_ratio_sal_box
 ```
 
 ```{r}
-employment_type_sal_box <- ggplot(sal_data,aes(x=as.factor(employment_type),y=salary_in_usd,group = employment_type,fill=as.factor(employment_type)))+geom_boxplot() + scale_y_continuous(name="Salary in USD", labels = comma)+theme_economist()+scale_fill_manual(values=c("#F35DBD", "#BCF930","#B2FFFF"))
+employment_type_sal_box <- ggplot(sal_data,aes(x=employment_type,y=salary_in_usd,group = employment_type,fill=employment_type))+geom_boxplot() + scale_y_continuous(name="Salary in USD", labels = comma)+theme_economist()+scale_fill_manual(values=c("#F35DBD", "#BCF930","#B2FFFF"))
 employment_type_sal_box
 ```
 
-None of the
+None of the graphs or plots reflected my initial thoughts. For experience_level there are no clustering for job_titles as I thought there would be. And for remote ratio, it does not appear that greater remoteness resulted in a lower salary. For the relation between employment_type and salary, amazingly enough contract workers were paid more, and freelance was expectedly paid the least. However, after examination of the dataset it appears that FL, and CT had very low observations counts, and so may not be a completely accurate representation, in fact PT, had no observations.
+
+###Data Splitting
+
+```{r}
+set.seed(95120)
+sal_data_split <- initial_split(sal_data,prop = 0.8,strata='job_title')
+sal_data_train <-training(sal_data_split)
+sal_data_test <- testing(sal_data_split)
+
+```
+
+##Analysis
+
+```{r}
+sal_data_recipe <- recipe(job_title ~ ., sal_data_train)
+```
+
+```{r}
+log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+log_wkflow <- workflow() %>% 
+  add_model(log_reg)%>%add_recipe(sal_data_recipe)
+
+log_fit <- fit(log_wkflow, sal_data_train)
+augment(log_fit, new_data = sal_data_train) %>%
+  accuracy(truth = job_title, estimate = .pred_class)
+augment(log_fit, new_data = sal_data_train) %>%
+  conf_mat(truth = job_title, estimate = .pred_class)%>%autoplot(type='heatmap')+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+```
+
+```{r}
+qda_mod <- discrim_quad() %>% 
+  set_mode("classification") %>% 
+  set_engine("MASS")
+
+qda_wkflow <- workflow() %>% 
+  add_model(qda_mod) %>% 
+  add_recipe(sal_data_recipe)
+
+qda_fit <- fit(qda_wkflow, sal_data_train)
+augment(qda_fit, new_data = sal_data_train) %>%
+  accuracy(truth = job_title, estimate = .pred_class)
+augment(qda_fit, new_data = sal_data_train) %>%
+  conf_mat(truth = job_title, estimate = .pred_class)%>%autoplot(type='heatmap')+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+```
+
+```{r}
+class_tree_spec <- decision_tree() %>% set_engine('rpart')%>%
+  set_mode("classification")
+class_tree_fit <- class_tree_spec %>%
+  fit(job_title ~., data = sal_data_train)
+class_tree_fit %>%
+  extract_fit_engine() %>%
+  rpart.plot()
+```
+
+```{r}
+augment(class_tree_fit, new_data = sal_data_train) %>%
+  accuracy(truth = job_title, estimate = .pred_class)
+augment(class_tree_fit, new_data = sal_data_train) %>%
+  conf_mat(truth = job_title, estimate = .pred_class)%>%autoplot(type='heatmap')+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+```
